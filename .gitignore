@@ -1,0 +1,8 @@
+pcap_sniffer
+*.o
+*.out
+*.pcap
+evidence/
+.DS_Store
+*_reference.c
+*_reference.h
