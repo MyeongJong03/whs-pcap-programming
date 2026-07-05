@@ -88,6 +88,7 @@ static void got_packet(u_char *args, const struct pcap_pkthdr *header,
         return;
     }
 
+    /* Ethernet Header 파싱 */
     eth = (const struct ethheader *)packet;
     if (ntohs(eth->ether_type) != ETHER_TYPE_IP) {
         return;
@@ -98,6 +99,7 @@ static void got_packet(u_char *args, const struct pcap_pkthdr *header,
     }
 
     ip = (const struct ipheader *)(packet + SIZE_ETHERNET);
+    /* IP Header 길이는 IHL 값을 기준으로 계산한다. */
     ip_header_len = ip->iph_ihl * 4;
     if (ip->iph_ver != 4 || ip_header_len < sizeof(struct ipheader)) {
         return;
@@ -117,6 +119,7 @@ static void got_packet(u_char *args, const struct pcap_pkthdr *header,
     }
 
     tcp = (const struct tcpheader *)(packet + transport_offset);
+    /* TCP Header 길이는 Data Offset 값을 기준으로 계산한다. */
     tcp_header_len = TH_OFF(tcp) * 4;
     if (tcp_header_len < sizeof(struct tcpheader)) {
         return;
@@ -136,6 +139,7 @@ static void got_packet(u_char *args, const struct pcap_pkthdr *header,
         payload_len = (int)(caplen - transport_offset - tcp_header_len);
     }
 
+    /* TCP Payload 위치는 Ethernet + IP Header + TCP Header 뒤이다. */
     payload = packet + transport_offset + tcp_header_len;
 
     if (inet_ntop(AF_INET, &(ip->iph_sourceip), src_ip, sizeof(src_ip)) == NULL) {
@@ -150,24 +154,24 @@ static void got_packet(u_char *args, const struct pcap_pkthdr *header,
 
     printf("========================================\n");
     printf("[Ethernet Header]\n");
-    printf("Src MAC : ");
+    printf("출발지 MAC : ");
     print_mac(eth->ether_shost);
     printf("\n");
-    printf("Dst MAC : ");
+    printf("목적지 MAC : ");
     print_mac(eth->ether_dhost);
     printf("\n\n");
 
     printf("[IP Header]\n");
-    printf("Src IP  : %s\n", src_ip);
-    printf("Dst IP  : %s\n\n", dst_ip);
+    printf("출발지 IP  : %s\n", src_ip);
+    printf("목적지 IP  : %s\n\n", dst_ip);
 
     printf("[TCP Header]\n");
-    printf("Src Port: %u\n", ntohs(tcp->tcp_sport));
-    printf("Dst Port: %u\n\n", ntohs(tcp->tcp_dport));
+    printf("출발지 Port: %u\n", ntohs(tcp->tcp_sport));
+    printf("목적지 Port: %u\n\n", ntohs(tcp->tcp_dport));
 
     printf("[HTTP Message]\n");
     if (payload_len <= 0) {
-        printf("No HTTP payload or empty TCP payload.\n");
+        printf("출력할 HTTP Message가 없거나 TCP Payload가 비어 있습니다.\n");
     } else {
         print_readable_payload(payload, payload_len);
     }
@@ -186,7 +190,7 @@ int main(int argc, char *argv[])
     const char *interface_name;
 
     if (argc > 2) {
-        fprintf(stderr, "Usage: %s [interface]\n", argv[0]);
+        fprintf(stderr, "사용법: %s [interface]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -195,7 +199,7 @@ int main(int argc, char *argv[])
     } else {
         selected_interface = find_default_interface(errbuf);
         if (selected_interface == NULL) {
-            fprintf(stderr, "Could not find a network interface: %s\n", errbuf);
+            fprintf(stderr, "네트워크 인터페이스를 찾을 수 없습니다: %s\n", errbuf);
             return EXIT_FAILURE;
         }
         interface_name = selected_interface;
@@ -208,13 +212,13 @@ int main(int argc, char *argv[])
 
     handle = pcap_open_live(interface_name, BUFSIZ, 1, 1000, errbuf);
     if (handle == NULL) {
-        fprintf(stderr, "Could not open interface %s: %s\n", interface_name, errbuf);
+        fprintf(stderr, "인터페이스를 열 수 없습니다 (%s): %s\n", interface_name, errbuf);
         free(selected_interface);
         return EXIT_FAILURE;
     }
 
     if (pcap_datalink(handle) != DLT_EN10MB) {
-        fprintf(stderr, "Interface %s does not use Ethernet link-layer headers.\n",
+        fprintf(stderr, "인터페이스 %s는 Ethernet 링크 계층 헤더를 사용하지 않습니다.\n",
                 interface_name);
         pcap_close(handle);
         free(selected_interface);
@@ -222,7 +226,7 @@ int main(int argc, char *argv[])
     }
 
     if (pcap_compile(handle, &fp, filter_exp, 0, mask) == -1) {
-        fprintf(stderr, "Could not compile BPF filter '%s': %s\n",
+        fprintf(stderr, "BPF 필터를 컴파일할 수 없습니다 ('%s'): %s\n",
                 filter_exp, pcap_geterr(handle));
         pcap_close(handle);
         free(selected_interface);
@@ -230,7 +234,7 @@ int main(int argc, char *argv[])
     }
 
     if (pcap_setfilter(handle, &fp) == -1) {
-        fprintf(stderr, "Could not set BPF filter '%s': %s\n",
+        fprintf(stderr, "BPF 필터를 설정할 수 없습니다 ('%s'): %s\n",
                 filter_exp, pcap_geterr(handle));
         pcap_freecode(&fp);
         pcap_close(handle);
@@ -238,11 +242,11 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    printf("Listening on interface: %s\n", interface_name);
-    printf("BPF filter: %s\n\n", filter_exp);
+    printf("캡처 인터페이스: %s\n", interface_name);
+    printf("BPF 필터: %s\n\n", filter_exp);
 
     if (pcap_loop(handle, -1, got_packet, NULL) == -1) {
-        fprintf(stderr, "pcap_loop failed: %s\n", pcap_geterr(handle));
+        fprintf(stderr, "pcap_loop 실패: %s\n", pcap_geterr(handle));
         pcap_freecode(&fp);
         pcap_close(handle);
         free(selected_interface);
