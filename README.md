@@ -5,8 +5,6 @@
 WhiteHat School 네트워크 보안 수업의 PCAP Programming 과제입니다.
 C와 libpcap을 사용해서 TCP 패킷을 캡처하고, Ethernet Header, IP Header, TCP Header, HTTP Message 정보를 출력합니다.
 
-GitHub 제출 시에는 소스 코드와 README.md를 같이 올리면 됩니다.
-
 ## 개발 환경
 
 - Ubuntu / WSL 환경
